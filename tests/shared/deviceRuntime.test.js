@@ -62,13 +62,15 @@ test('usage publishes immediately without waiting for limits and late limits emi
   assert.equal(records[1].record.limits.updatedAt, 'limits-time');
 });
 
-test('limits arriving before first usage are buffered without fabricating a zero record', () => {
+test('limits arriving before first usage are emitted immediately so the renderer sees them within seconds', () => {
   const { limitsDeps, records, usageOptions } = harness();
   limitsDeps.onUpdate({ updatedAt: 'limits-time', refreshMs: 300000, providers: [] });
-  assert.equal(records.length, 0);
-  usageOptions.onUpdate({ updatedAt: 'usage-time', today: { totalTokens: 7 } }, 'startup');
   assert.equal(records.length, 1);
   assert.equal(records[0].record.limits.updatedAt, 'limits-time');
+  usageOptions.onUpdate({ updatedAt: 'usage-time', today: { totalTokens: 7 } }, 'startup');
+  assert.equal(records.length, 2);
+  assert.equal(records[1].record.today.totalTokens, 7);
+  assert.equal(records[1].record.limits.updatedAt, 'limits-time');
 });
 
 test('initial limits seed composes with the first usage record', () => {

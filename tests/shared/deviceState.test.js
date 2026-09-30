@@ -28,7 +28,7 @@ function limits(updatedAt = '2026-07-21T01:00:05.000Z', status = 'ok') {
   };
 }
 
-test('buffers limits until usage exists instead of emitting a zero-period record', () => {
+test('limits emit immediately so the renderer sees them before the first usage scan', () => {
   const emitted = [];
   const state = createDeviceState({
     epoch: 7,
@@ -36,16 +36,23 @@ test('buffers limits until usage exists instead of emitting a zero-period record
     onRecord: (record, meta) => emitted.push({ record, meta })
   });
 
-  assert.equal(state.updateLimits(limits(), 'startup', { epoch: 7 }), null);
-  assert.equal(state.getSnapshot(), null);
-  assert.equal(emitted.length, 0);
-
-  const record = state.updateUsage(usage(), 'startup', { epoch: 7 });
-  assert.equal(record.deviceId, 'configured-device');
-  assert.equal(record.today.totalTokens, 10);
-  assert.equal(record.limits.providers[0].provider, 'codex');
+  // The renderer needs the limits view within seconds of startup, not after
+  // the first tokscale scan lands hours later — publish fires for limits-only
+  // updates so the limits-only payload reaches the renderer immediately.
+  const limitsRecord = state.updateLimits(limits(), 'startup', { epoch: 7 });
+  assert.equal(limitsRecord.deviceId, 'configured-device');
+  assert.equal(limitsRecord.limits.providers[0].provider, 'codex');
   assert.equal(emitted.length, 1);
-  assert.deepEqual(emitted[0].meta, { revision: 1, source: 'usage', reason: 'startup', epoch: 7 });
+  assert.deepEqual(emitted[0].meta, { revision: 1, source: 'limits', reason: 'startup', epoch: 7 });
+
+  // A later updateUsage merges into the same envelope; the renderer receives a
+  // second record with periods AND limits.
+  const usageRecord = state.updateUsage(usage(), 'startup', { epoch: 7 });
+  assert.equal(usageRecord.deviceId, 'configured-device');
+  assert.equal(usageRecord.today.totalTokens, 10);
+  assert.equal(usageRecord.limits.providers[0].provider, 'codex');
+  assert.equal(emitted.length, 2);
+  assert.deepEqual(emitted[1].meta, { revision: 2, source: 'usage', reason: 'startup', epoch: 7 });
 });
 
 test('usage emits immediately and a later limits update emits a second full record', () => {

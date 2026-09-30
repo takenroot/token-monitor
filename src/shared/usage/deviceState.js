@@ -109,8 +109,17 @@ function createDeviceState(options = {}) {
   // and on a long history the record runs to megabytes, so each extra
   // defensive copy was a measurable stall on the main process. The observer and
   // the caller share that one copy; neither can reach the parts behind it.
+  //
+  // Publish on either part: updateUsage preserves the last limitsPart and
+  // updateLimits preserves the last usagePart, so a single publish always sees
+  // the most recent value of both. The renderer's limits view should therefore
+  // appear within seconds of startup, instead of waiting for the first usage
+  // scan to complete (a multi-hour scan over a large historical archive would
+  // otherwise leave the limits view blank even though the limits runtime has
+  // answers ready).
   function publish(source, reason) {
-    if (!usagePart || stopped) return null;
+    if (stopped) return null;
+    if (!usagePart && !limitsPart) return null;
     published = { usagePart, limitsPart };
     const record = recordFrom(published);
     revision += 1;
