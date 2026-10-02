@@ -33,12 +33,23 @@ function deviceRecordFromAnchor(saved, options = {}) {
     wslSupported = false,
     hostname = '',
     platform = '',
-    now = new Date()
+    now = new Date(),
+    allowStaleDate = false
   } = options;
   const qoderCnSources = qoderCnSourcesForClients(clients, { homeDir, env, platform: sourcePlatform });
   const qoderCnDbPath = qoderCnDbPathOption === undefined ? qoderCnSources.dbPath : qoderCnDbPathOption;
   const qoderCnProjectsDir = qoderCnProjectsDirOption === undefined ? qoderCnSources.projectsDir : qoderCnProjectsDirOption;
-  const trust = collectorAnchorTrust(saved, { clients, allTimeSince, projectsEnabled, qoderCnDbPath, qoderCnProjectsDir, customScanPaths, now });
+  // Seed-time trust check: an anchor whose dateKey is yesterday's is fine to
+  // surface as a one-shot seed because the next live scan will replace it
+  // within minutes. The same anchor would be a real bug for the collector's
+  // delta-derivation path (today/month boundaries shift on the rollover), so
+  // the seed opts in independently with `allowStaleDate`. Caller passes true
+  // only for the cold-start widget seed; the collector itself stays strict.
+  if (!saved) return null;
+  const trust = collectorAnchorTrust(saved, {
+    clients, allTimeSince, projectsEnabled, qoderCnDbPath, qoderCnProjectsDir, customScanPaths, now,
+    skipDateKeyCheck: allowStaleDate
+  });
   if (!trust) return null;
   // The seed's own rule, and the one place it is stricter than the collector.
   // A capture time the collector cannot trust only costs it a full scan, but

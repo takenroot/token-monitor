@@ -2383,8 +2383,13 @@ function qoderCnProjectsDirForClients(clientsCsv, options = {}) {
 // collector still reuses the periods then and simply forces a full scan, while
 // a seed has nothing to stand on and declines.
 function collectorAnchorTrust(saved, options = {}) {
-  const { clients = '', allTimeSince = '', projectsEnabled = true, qoderCnDbPath = '', qoderCnProjectsDir = '', customScanPaths = null, now = new Date() } = options;
-  if (!saved || saved.dateKey !== localTodayKey(now)) return null;
+  const { clients = '', allTimeSince = '', projectsEnabled = true, qoderCnDbPath = '', qoderCnProjectsDir = '', customScanPaths = null, now = new Date(), skipDateKeyCheck = false } = options;
+  if (!saved) return null;
+  // The dateKey check keeps the collector's delta-derivation honest: today's
+  // bucket must match today, or a stale anchor would silently leak yesterday's
+  // numbers into today's totals. The seed-time caller can opt out because the
+  // next live scan replaces whatever it surfaces within minutes.
+  if (!skipDateKeyCheck && saved.dateKey !== localTodayKey(now)) return null;
   if (!saved.today || !saved.month || !saved.allTime) return null;
   // Old Cursor anchors preserve `default` in their broad-period model maps;
   // applying a new `cursor-auto` Today delta to them would split one mode.

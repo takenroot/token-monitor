@@ -752,7 +752,7 @@ function electronUsageConfig(errorPrefix) {
   return usageConfigFromSettings(settings, {
     agentVersion: appVersion(),
     agentRuntime: 'electron-widget',
-    commandTimeoutMs: 120 * 1000,
+    commandTimeoutMs: 30 * 60 * 1000,
     defaultDeviceId: defaultDeviceId(),
     intervalMs: collectorIntervalMs(),
     historyIntervalMs: normalizeHistoryIntervalMs(settings.historyIntervalMs),
@@ -3015,7 +3015,7 @@ const diagnosticSnapshotBuilder = createDiagnosticSnapshotBuilder({
     usage: {
       agentVersion: appVersion(),
       agentRuntime: 'electron-widget',
-      commandTimeoutMs: 120 * 1000,
+      commandTimeoutMs: 30 * 60 * 1000,
       defaultDeviceId: defaultDeviceId(),
       intervalMs: collectorIntervalMs(),
       historyIntervalMs: normalizeHistoryIntervalMs(settings?.historyIntervalMs)
@@ -4731,7 +4731,14 @@ function primeLocalStatsFromAnchor(usageOptions, widgetProducerOwner) {
       wslScanEnabled: usageOptions.wslScanEnabled,
       wslSupported: process.platform === 'win32',
       hostname: os.hostname(),
-      platform: `${process.platform}-${process.arch}`
+      platform: `${process.platform}-${process.arch}`,
+      // The cold-start seed needs to surface the anchor even when it was
+      // captured on a previous local day (e.g. the app sat idle across
+      // midnight), otherwise the renderer is blank until the first full scan
+      // completes — which can take longer than the tokscale command timeout
+      // for large archives, leaving the user with zeros. The next live scan
+      // replaces this seed within minutes.
+      allowStaleDate: true
     }
   );
   if (!deviceRecord) return;
